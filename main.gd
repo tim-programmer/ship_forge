@@ -152,7 +152,7 @@ func _build_world() -> void:
 
 	mat.vertex_color_use_as_albedo = true
 	mat.emission_enabled = true
-	mat.emission = Color.WHITE
+	mat.emission = Color.BLACK  # Godot ADDS this to the emission texture, so it must be black
 	mat.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS_ANISOTROPIC
 	mesh_inst = MeshInstance3D.new()
 	mesh_inst.name = "Hull"
