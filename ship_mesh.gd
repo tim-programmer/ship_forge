@@ -1,0 +1,279 @@
+extends RefCounted
+## Procedural spaceship geometry, built entirely from the parameter dictionary `p`.
+## Ship nose points down -Z (Godot's "forward"), engines are at +Z.
+
+const RINGS := 56
+const SEGS := 32
+
+
+# --- hull shape -------------------------------------------------------------
+
+## Radius multiplier (0..~1) of the fuselage at t in [0, 1] from nose to tail.
+static func profile(p: Dictionary, t: float) -> float:
+	var nose_len: float = maxf(p.nose_len, 0.02)
+	var tail_len: float = maxf(p.tail_len, 0.02)
+	var f := 1.0
+	if t < nose_len:
+		f = pow(sin(t / nose_len * PI * 0.5), float(p.nose_round))
+	if t > 1.0 - tail_len:
+		var k := smoothstep(0.0, 1.0, (t - (1.0 - tail_len)) / tail_len)
+		f *= lerpf(1.0, float(p.tail_scale), k)
+	var bulge: float = p.bulge
+	f *= 1.0 + bulge * sin(t * PI)
+	return f
+
+
+static func z_at(p: Dictionary, t: float) -> float:
+	var half: float = float(p.length) * 0.5
+	return lerpf(-half, half, t)
+
+
+## Point on the fuselage cross-section (a super-ellipse) at angle `a`.
+static func section(p: Dictionary, t: float, a: float) -> Vector3:
+	var f: float = profile(p, t)
+	var ex: float = 2.0 / float(p.squareness)
+	var c := cos(a)
+	var s := sin(a)
+	var x: float = signf(c) * pow(absf(c), ex) * float(p.width) * 0.5 * f
+	var y: float = signf(s) * pow(absf(s), ex) * float(p.height) * 0.5 * f
+	if y < 0.0:
+		y *= float(p.belly)
+	return Vector3(x, y, z_at(p, t))
+
+
+# --- triangle helpers -------------------------------------------------------
+
+static func uv_for(v: Vector3, axis: int, s: float) -> Vector2:
+	match axis:
+		0:
+			return Vector2(v.z, -v.y) * s
+		1:
+			return Vector2(v.x, v.z) * s
+		_:
+			return Vector2(v.x, -v.y) * s
+
+
+## Adds one triangle. Winding is corrected so the face points away from `center`,
+## and a planar UV is projected along the face's dominant axis.
+static func tri(st: SurfaceTool, a: Vector3, b: Vector3, c: Vector3, center: Vector3,
+		col: Color, smooth: bool, uvs: float) -> void:
+	var n := (b - a).cross(c - a)
+	if n.dot((a + b + c) / 3.0 - center) > 0.0:
+		var tmp := b
+		b = c
+		c = tmp
+	var an := n.abs()
+	var axis := 2
+	if an.x >= an.y and an.x >= an.z:
+		axis = 0
+	elif an.y >= an.z:
+		axis = 1
+	st.set_smooth_group(0 if smooth else -1)
+	st.set_color(col)
+	for v in [a, b, c]:
+		st.set_uv(uv_for(v, axis, uvs))
+		st.add_vertex(v)
+
+
+static func quad(st: SurfaceTool, a: Vector3, b: Vector3, c: Vector3, d: Vector3,
+		center: Vector3, col: Color, smooth: bool, uvs: float) -> void:
+	tri(st, a, b, c, center, col, smooth, uvs)
+	tri(st, a, c, d, center, col, smooth, uvs)
+
+
+## Solid between two 4-point loops (a hexahedron). Used for wings, fins and boxes.
+static func prism(st: SurfaceTool, bot: PackedVector3Array, top: PackedVector3Array,
+		col: Color, uvs: float) -> void:
+	var center := Vector3.ZERO
+	for v in bot:
+		center += v
+	for v in top:
+		center += v
+	center /= 8.0
+	quad(st, bot[0], bot[1], bot[2], bot[3], center, col, false, uvs)
+	quad(st, top[0], top[1], top[2], top[3], center, col, false, uvs)
+	for i in 4:
+		var j := (i + 1) % 4
+		quad(st, bot[i], bot[j], top[j], top[i], center, col, false, uvs)
+
+
+static func box(st: SurfaceTool, c: Vector3, s: Vector3, col: Color, uvs: float) -> void:
+	var h := s * 0.5
+	var bot := PackedVector3Array([
+		c + Vector3(-h.x, -h.y, -h.z), c + Vector3(h.x, -h.y, -h.z),
+		c + Vector3(h.x, -h.y, h.z), c + Vector3(-h.x, -h.y, h.z)])
+	var top := PackedVector3Array([
+		c + Vector3(-h.x, h.y, -h.z), c + Vector3(h.x, h.y, -h.z),
+		c + Vector3(h.x, h.y, h.z), c + Vector3(-h.x, h.y, h.z)])
+	prism(st, bot, top, col, uvs)
+
+
+# --- parts ------------------------------------------------------------------
+
+static func wing(st: SurfaceTool, side: float, x0: float, z_le: float, y: float,
+		span: float, c_root: float, c_tip: float, sweep: float, thick: float,
+		dihedral: float, col: Color, uvs: float) -> void:
+	var x1 := x0 + span
+	var yt := y + dihedral
+	var th_t := thick * 0.4
+	var bot := PackedVector3Array([
+		Vector3(side * x0, y - thick * 0.5, z_le),
+		Vector3(side * x0, y - thick * 0.5, z_le + c_root),
+		Vector3(side * x1, yt - th_t * 0.5, z_le + sweep + c_tip),
+		Vector3(side * x1, yt - th_t * 0.5, z_le + sweep)])
+	var top := PackedVector3Array([
+		Vector3(side * x0, y + thick * 0.5, z_le),
+		Vector3(side * x0, y + thick * 0.5, z_le + c_root),
+		Vector3(side * x1, yt + th_t * 0.5, z_le + sweep + c_tip),
+		Vector3(side * x1, yt + th_t * 0.5, z_le + sweep)])
+	prism(st, bot, top, col, uvs)
+
+
+## A tail fin sticking out of the hull at `ang` radians around the Z axis (0 = straight up).
+static func fin(st: SurfaceTool, ang: float, r0: float, z_le: float, height: float,
+		chord_root: float, chord_tip: float, sweep: float, thick: float,
+		col: Color, uvs: float) -> void:
+	var h := thick * 0.5
+	var plan: Array[Vector2] = [
+		Vector2(r0, z_le), Vector2(r0, z_le + chord_root),
+		Vector2(r0 + height, z_le + sweep + chord_tip), Vector2(r0 + height, z_le + sweep)]
+	var left := PackedVector3Array()
+	var right := PackedVector3Array()
+	for q in plan:
+		left.append(Vector3(-h, q.x, q.y).rotated(Vector3.BACK, ang))
+		right.append(Vector3(h, q.x, q.y).rotated(Vector3.BACK, ang))
+	prism(st, left, right, col, uvs)
+
+
+## Engine nacelle ending in a flared nozzle. `pos` is the centre of the nozzle opening.
+static func engine(st: SurfaceTool, pos: Vector3, r: float, eng_len: float,
+		col: Color, uvs: float) -> void:
+	var mult := [0.8, 1.0, 1.0, 1.25]
+	var frac := [-1.0, -0.55, -0.15, 0.0]
+	var n := 16
+	var rings: Array = []
+	for i in mult.size():
+		var ring := PackedVector3Array()
+		for j in n:
+			var a := TAU * j / n
+			ring.append(Vector3(pos.x + cos(a) * r * mult[i], pos.y + sin(a) * r * mult[i],
+				pos.z + eng_len * frac[i]))
+		rings.append(ring)
+	for i in mult.size() - 1:
+		var center := Vector3(pos.x, pos.y, pos.z + eng_len * (frac[i] + frac[i + 1]) * 0.5)
+		for j in n:
+			var j2 := (j + 1) % n
+			quad(st, rings[i][j], rings[i][j2], rings[i + 1][j2], rings[i + 1][j],
+				center, col, true, uvs)
+	var front: PackedVector3Array = rings[0]
+	var fc := Vector3(pos.x, pos.y, pos.z - eng_len)
+	for j in n:
+		tri(st, fc, front[j], front[(j + 1) % n], pos, col, false, uvs)
+
+
+# --- full ship --------------------------------------------------------------
+
+static func build(p: Dictionary) -> Dictionary:
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+
+	var uvs: float = p.tex_scale
+	var part_col: Color = p.part_col
+	var hull_col := Color.WHITE
+	var dark := Color(0.16, 0.16, 0.19)
+	var length: float = p.length
+	var width: float = p.width
+	var height: float = p.height
+
+	# Fuselage: stacked rings, smooth-shaded.
+	var rings: Array = []
+	for i in RINGS + 1:
+		var t := float(i) / RINGS
+		var ring := PackedVector3Array()
+		for j in SEGS:
+			ring.append(section(p, t, TAU * j / SEGS))
+		rings.append(ring)
+	for i in RINGS:
+		var zc := (z_at(p, float(i) / RINGS) + z_at(p, float(i + 1) / RINGS)) * 0.5
+		var center := Vector3(0, 0, zc)
+		for j in SEGS:
+			var j2 := (j + 1) % SEGS
+			quad(st, rings[i][j], rings[i][j2], rings[i + 1][j2], rings[i + 1][j],
+				center, hull_col, true, uvs)
+	# Rear cap.
+	var last: PackedVector3Array = rings[RINGS]
+	var cap_c := Vector3(0, 0, z_at(p, 1.0))
+	for j in SEGS:
+		tri(st, cap_c, last[j], last[(j + 1) % SEGS], cap_c - Vector3(0, 0, 1), hull_col, false, uvs)
+
+	# Main wings.
+	if float(p.wing_span) > 0.05:
+		var wz := z_at(p, p.wing_pos)
+		var wx0: float = width * 0.5 * profile(p, p.wing_pos) * 0.35
+		var wy: float = float(p.wing_y) * height * 0.5
+		for side in [-1.0, 1.0]:
+			wing(st, side, wx0, wz, wy, p.wing_span, p.wing_chord,
+				float(p.wing_chord) * float(p.wing_taper), p.wing_sweep, p.wing_thick,
+				p.wing_dihedral, part_col, uvs)
+
+	# Canards (small forward wings).
+	if float(p.canard_span) > 0.05:
+		var cz := z_at(p, p.canard_pos)
+		var cx0: float = width * 0.5 * profile(p, p.canard_pos) * 0.35
+		for side in [-1.0, 1.0]:
+			wing(st, side, cx0, cz, 0.0, p.canard_span, p.canard_chord,
+				float(p.canard_chord) * 0.5, p.canard_sweep, float(p.wing_thick) * 0.7,
+				0.0, part_col, uvs)
+
+	# Tail fins.
+	var fin_count := int(p.fin_count)
+	if fin_count > 0:
+		var splay := deg_to_rad(float(p.fin_splay))
+		var angles: Array[float] = []
+		match fin_count:
+			1:
+				angles = [0.0]
+			2:
+				angles = [-splay, splay]
+			_:
+				angles = [-splay, 0.0, splay]
+		var fz := z_at(p, p.fin_pos)
+		var r0: float = height * 0.5 * profile(p, p.fin_pos) * 0.6
+		for a in angles:
+			fin(st, a, r0, fz, p.fin_height, p.fin_chord, float(p.fin_chord) * 0.4,
+				p.fin_sweep, p.fin_thick, part_col, uvs)
+
+	# Engines.
+	var engines: Array[Vector3] = []
+	var eng_n := int(p.engine_count)
+	for i in eng_n:
+		var ex := (float(i) - (eng_n - 1) * 0.5) * float(p.engine_spacing)
+		var pos := Vector3(ex, p.engine_y, length * 0.5 + float(p.engine_out))
+		engine(st, pos, p.engine_radius, p.engine_len, dark, uvs)
+		engines.append(pos)
+
+	# Surface greebles: little boxes scattered over the top of the hull.
+	var rng := RandomNumberGenerator.new()
+	rng.seed = int(p.seed) * 7919 + 13
+	var gsize: float = p.greeble_size
+	for i in int(p.greeble_count):
+		var t := rng.randf_range(0.12, 0.88)
+		var f := profile(p, t)
+		var xr := rng.randf_range(-0.7, 0.7)
+		var gx := xr * width * 0.5 * f
+		var gy := height * 0.5 * f * sqrt(1.0 - xr * xr) - gsize * 0.1
+		var sz := Vector3(rng.randf_range(0.3, 1.0), rng.randf_range(0.2, 0.7),
+			rng.randf_range(0.3, 1.2)) * gsize
+		box(st, Vector3(gx, gy, z_at(p, t)), sz, part_col.darkened(0.25), uvs)
+
+	st.generate_normals()
+
+	var cs: float = p.cockpit_size
+	var ct: float = p.cockpit_pos
+	return {
+		"mesh": st.commit(),
+		"engines": engines,
+		"engine_r": float(p.engine_radius) * 0.85,
+		"cockpit_pos": Vector3(0, height * 0.5 * profile(p, ct) * 0.7, z_at(p, ct)),
+		"cockpit_scale": Vector3(width * 0.5, height * 0.45, length * 0.2) * cs,
+	}
