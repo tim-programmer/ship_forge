@@ -18,6 +18,9 @@ const SLIDERS := [
 	["Hull", "bulge", "Mid-body bulge", -0.3, 0.8, 0.01, 0.15, "mesh"],
 	["Hull", "squareness", "Squareness (2 = round)", 2.0, 6.0, 0.1, 2.6, "mesh"],
 	["Hull", "belly", "Belly depth", 0.2, 1.5, 0.01, 0.7, "mesh"],
+	["Hull", "hull_sides", "Cross-section sides (32 = round)", 3.0, 32.0, 1.0, 32.0, "mesh"],
+	["Hull", "hull_steps", "Stepped segments (0 = smooth)", 0.0, 12.0, 1.0, 0.0, "mesh"],
+	["Hull", "asymmetry", "Asymmetry", 0.0, 1.0, 0.01, 0.0, "mesh"],
 	["Wings", "wing_pos", "Position", 0.1, 0.9, 0.01, 0.5, "mesh"],
 	["Wings", "wing_span", "Span", 0.0, 16.0, 0.1, 6.0, "mesh"],
 	["Wings", "wing_chord", "Root chord", 1.0, 12.0, 0.1, 5.0, "mesh"],
@@ -47,6 +50,9 @@ const SLIDERS := [
 	["Cockpit", "cockpit_pos", "Position", 0.1, 0.7, 0.01, 0.3, "mesh"],
 	["Details", "greeble_count", "Surface bits", 0.0, 150.0, 1.0, 25.0, "mesh"],
 	["Details", "greeble_size", "Surface bit size", 0.1, 1.5, 0.01, 0.5, "mesh"],
+	["Details", "spire_count", "Spires", 0.0, 6.0, 1.0, 0.0, "mesh"],
+	["Details", "spire_height", "Spire height", 1.0, 12.0, 0.1, 5.0, "mesh"],
+	["Details", "strut_count", "Exposed struts", 0.0, 24.0, 1.0, 0.0, "mesh"],
 	["Details", "seed", "Random seed", 0.0, 999.0, 1.0, 1.0, "both"],
 	["Surface", "metallic", "Metallic", 0.0, 1.0, 0.01, 0.6, "mat"],
 	["Surface", "roughness", "Roughness", 0.0, 1.0, 0.01, 0.45, "mat"],
@@ -71,6 +77,72 @@ const COLORS := [
 	["Colors", "engine_col", "Engine glow", Color(0.4, 0.7, 1.0), "mat"],
 	["Colors", "cockpit_col", "Cockpit glass", Color(0.1, 0.25, 0.4), "mat"],
 ]
+
+# Faction looks. Each preset resets everything to defaults, then applies these overrides.
+const FACTIONS := {
+	"Caldari": {
+		"length": 16.0, "width": 5.0, "height": 3.6, "hull_sides": 4.0, "hull_steps": 5.0,
+		"nose_len": 0.3, "tail_len": 0.25, "tail_scale": 0.8, "bulge": 0.0, "belly": 1.0,
+		"wing_span": 0.0, "canard_span": 0.0, "fin_count": 0.0,
+		"engine_count": 4.0, "engine_radius": 0.6, "engine_spacing": 1.4, "engine_len": 2.5,
+		"greeble_count": 45.0, "greeble_size": 0.6,
+		"panels": 6.0, "panel_var": 0.1, "line_dark": 0.7, "line_width": 2.0,
+		"stripe_width": 0.04, "grime": 0.25, "window_density": 0.25,
+		"metallic": 0.7, "roughness": 0.5,
+		"hull_col": Color(0.38, 0.45, 0.55), "accent_col": Color(0.2, 0.55, 0.85),
+		"window_col": Color(0.7, 0.85, 1.0), "part_col": Color(0.5, 0.55, 0.62),
+		"engine_col": Color(0.4, 0.7, 1.0),
+	},
+	"Gallente": {
+		"length": 13.0, "width": 6.0, "height": 4.2, "hull_sides": 32.0,
+		"nose_len": 0.45, "nose_round": 0.7, "tail_len": 0.35, "tail_scale": 0.5,
+		"bulge": 0.35, "squareness": 2.0, "belly": 1.0,
+		"wing_span": 3.5, "wing_chord": 5.0, "wing_taper": 0.5, "wing_sweep": 2.0,
+		"wing_thick": 0.5, "wing_dihedral": 0.0, "wing_y": -0.4,
+		"canard_span": 0.0, "fin_count": 0.0,
+		"engine_count": 1.0, "engine_radius": 1.3, "engine_len": 3.0,
+		"greeble_count": 12.0, "panels": 5.0, "panel_var": 0.12, "line_dark": 0.3,
+		"stripe_pos": 0.6, "stripe_width": 0.1, "grime": 0.3, "window_density": 0.15,
+		"metallic": 0.5, "roughness": 0.4,
+		"hull_col": Color(0.38, 0.5, 0.42), "accent_col": Color(0.75, 0.8, 0.3),
+		"window_col": Color(0.7, 1.0, 0.7), "part_col": Color(0.3, 0.38, 0.33),
+		"engine_col": Color(0.4, 1.0, 0.6),
+	},
+	"Amarr": {
+		"length": 20.0, "width": 4.5, "height": 3.2, "hull_sides": 8.0,
+		"nose_len": 0.4, "nose_round": 1.6, "tail_len": 0.2, "tail_scale": 0.6,
+		"bulge": 0.3, "belly": 0.8,
+		"wing_pos": 0.45, "wing_span": 4.0, "wing_chord": 6.0, "wing_taper": 0.3,
+		"wing_sweep": 5.0, "wing_thick": 0.35, "wing_dihedral": 1.5, "wing_y": 0.1,
+		"canard_span": 2.5, "canard_chord": 2.0, "canard_sweep": 2.0, "fin_count": 0.0,
+		"spire_count": 4.0, "spire_height": 5.0,
+		"engine_count": 3.0, "engine_radius": 0.7, "engine_spacing": 1.6,
+		"greeble_count": 30.0, "greeble_size": 0.4,
+		"panels": 14.0, "panel_var": 0.15, "line_dark": 0.4, "stripe_width": 0.15,
+		"grime": 0.15, "window_density": 0.45,
+		"metallic": 0.9, "roughness": 0.3,
+		"hull_col": Color(0.78, 0.6, 0.22), "accent_col": Color(0.45, 0.12, 0.08),
+		"window_col": Color(1.0, 0.8, 0.4), "part_col": Color(0.7, 0.55, 0.25),
+		"engine_col": Color(1.0, 0.65, 0.25),
+	},
+	"Minmatar": {
+		"length": 15.0, "width": 3.2, "height": 2.6, "hull_sides": 6.0,
+		"nose_len": 0.3, "nose_round": 0.8, "tail_len": 0.3, "tail_scale": 0.6,
+		"bulge": 0.1, "belly": 0.9, "asymmetry": 0.7,
+		"wing_pos": 0.55, "wing_span": 5.0, "wing_chord": 3.5, "wing_taper": 0.3,
+		"wing_sweep": 4.0, "wing_thick": 0.2, "wing_dihedral": 1.0,
+		"canard_span": 3.0, "canard_chord": 1.5, "canard_sweep": 2.0,
+		"fin_count": 2.0, "fin_height": 3.5, "fin_chord": 3.0, "fin_splay": 55.0,
+		"engine_count": 2.0, "engine_radius": 0.9, "engine_spacing": 2.0, "engine_len": 4.0,
+		"strut_count": 14.0, "greeble_count": 40.0,
+		"panels": 8.0, "panel_var": 0.4, "line_dark": 0.6, "line_width": 2.5,
+		"stripe_pos": 0.3, "stripe_width": 0.1, "grime": 0.85, "window_density": 0.1,
+		"metallic": 0.5, "roughness": 0.7,
+		"hull_col": Color(0.5, 0.33, 0.24), "accent_col": Color(0.75, 0.2, 0.1),
+		"window_col": Color(1.0, 0.6, 0.3), "part_col": Color(0.42, 0.3, 0.24),
+		"engine_col": Color(1.0, 0.5, 0.2),
+	},
+}
 
 const NO_RANDOM := ["tex_scale", "metallic", "roughness", "emission_energy"]
 const TEX_SIZES := [256, 512, 1024]
@@ -292,6 +364,21 @@ func _build_ui() -> void:
 	title.add_theme_font_size_override("font_size", 22)
 	root.add_child(title)
 
+	var style_row := HBoxContainer.new()
+	root.add_child(style_row)
+	var style_label := Label.new()
+	style_label.text = "Style: "
+	style_row.add_child(style_label)
+	var style_opt := OptionButton.new()
+	style_opt.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	style_opt.add_item("Pick a faction look...")
+	for f in FACTIONS:
+		style_opt.add_item(f)
+	style_opt.item_selected.connect(func(i: int) -> void:
+		if i > 0:
+			apply_faction(FACTIONS.keys()[i - 1]))
+	style_row.add_child(style_opt)
+
 	var row1 := HBoxContainer.new()
 	root.add_child(row1)
 	_add_button(row1, "Randomize", randomize_ship)
@@ -435,6 +522,21 @@ func _set_param(key: String, v: Variant) -> void:
 				value_labels[key].text = _fmt(v, s[5])
 	elif ctl is ColorPickerButton:
 		(ctl as ColorPickerButton).color = v
+
+
+func apply_faction(faction: String) -> void:
+	for s in SLIDERS:
+		_set_param(s[1], s[6])
+	for c in COLORS:
+		_set_param(c[1], c[3])
+	var over: Dictionary = FACTIONS[faction]
+	for k in over:
+		_set_param(k, over[k])
+	_set_param("seed", randi() % 1000)
+	rebuild_mesh()
+	apply_material()
+	tex_timer.start()
+	status.text = faction + " style. Tweak anything from here."
 
 
 func randomize_ship() -> void:

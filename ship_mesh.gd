@@ -3,13 +3,15 @@ extends RefCounted
 ## Ship nose points down -Z (Godot's "forward"), engines are at +Z.
 
 const RINGS := 56
-const SEGS := 32
 
 
 # --- hull shape -------------------------------------------------------------
 
 ## Radius multiplier (0..~1) of the fuselage at t in [0, 1] from nose to tail.
 static func profile(p: Dictionary, t: float) -> float:
+	var steps := int(p.hull_steps)
+	if steps > 0:
+		t = (minf(floorf(t * steps), steps - 1.0) + 0.5) / steps
 	var nose_len: float = maxf(p.nose_len, 0.02)
 	var tail_len: float = maxf(p.tail_len, 0.02)
 	var f := 1.0
@@ -31,13 +33,23 @@ static func z_at(p: Dictionary, t: float) -> float:
 ## Point on the fuselage cross-section (a super-ellipse) at angle `a`.
 static func section(p: Dictionary, t: float, a: float) -> Vector3:
 	var f: float = profile(p, t)
-	var ex: float = 2.0 / float(p.squareness)
+	var sides := int(p.hull_sides)
 	var c := cos(a)
 	var s := sin(a)
-	var x: float = signf(c) * pow(absf(c), ex) * float(p.width) * 0.5 * f
-	var y: float = signf(s) * pow(absf(s), ex) * float(p.height) * 0.5 * f
+	var x: float
+	var y: float
+	if sides < 12:
+		# Faceted hull: regular polygon scaled so the flat faces sit at the nominal size.
+		var k := 1.0 / cos(PI / sides)
+		x = c * float(p.width) * 0.5 * f * k
+		y = s * float(p.height) * 0.5 * f * k
+	else:
+		var ex: float = 2.0 / float(p.squareness)
+		x = signf(c) * pow(absf(c), ex) * float(p.width) * 0.5 * f
+		y = signf(s) * pow(absf(s), ex) * float(p.height) * 0.5 * f
 	if y < 0.0:
 		y *= float(p.belly)
+	x += float(p.asymmetry) * sin(t * 3.0) * float(p.width) * 0.12
 	return Vector3(x, y, z_at(p, t))
 
 
@@ -186,25 +198,34 @@ static func build(p: Dictionary) -> Dictionary:
 	var height: float = p.height
 
 	# Fuselage: stacked rings, smooth-shaded.
+	var sides := int(p.hull_sides)
+	var smooth := sides >= 12
+	var a0 := 0.0 if smooth else 0.5
+	var asym: float = p.asymmetry
 	var rings: Array = []
 	for i in RINGS + 1:
 		var t := float(i) / RINGS
 		var ring := PackedVector3Array()
-		for j in SEGS:
-			ring.append(section(p, t, TAU * j / SEGS))
+		for j in sides:
+			ring.append(section(p, t, TAU * (j + a0) / sides))
 		rings.append(ring)
 	for i in RINGS:
 		var zc := (z_at(p, float(i) / RINGS) + z_at(p, float(i + 1) / RINGS)) * 0.5
 		var center := Vector3(0, 0, zc)
-		for j in SEGS:
-			var j2 := (j + 1) % SEGS
+		for j in sides:
+			var j2 := (j + 1) % sides
 			quad(st, rings[i][j], rings[i][j2], rings[i + 1][j2], rings[i + 1][j],
-				center, hull_col, true, uvs)
-	# Rear cap.
+				center, hull_col, smooth, uvs)
+	# Rear and nose caps (the nose only has one when the hull is blunt or stepped).
 	var last: PackedVector3Array = rings[RINGS]
 	var cap_c := Vector3(0, 0, z_at(p, 1.0))
-	for j in SEGS:
-		tri(st, cap_c, last[j], last[(j + 1) % SEGS], cap_c - Vector3(0, 0, 1), hull_col, false, uvs)
+	for j in sides:
+		tri(st, cap_c, last[j], last[(j + 1) % sides], cap_c - Vector3(0, 0, 1), hull_col, false, uvs)
+	if profile(p, 0.0) > 0.01:
+		var first: PackedVector3Array = rings[0]
+		var nose_c := Vector3(0, 0, z_at(p, 0.0))
+		for j in sides:
+			tri(st, nose_c, first[j], first[(j + 1) % sides], nose_c + Vector3(0, 0, 1), hull_col, false, uvs)
 
 	# Main wings.
 	if float(p.wing_span) > 0.05:
@@ -212,8 +233,9 @@ static func build(p: Dictionary) -> Dictionary:
 		var wx0: float = width * 0.5 * profile(p, p.wing_pos) * 0.35
 		var wy: float = float(p.wing_y) * height * 0.5
 		for side in [-1.0, 1.0]:
-			wing(st, side, wx0, wz, wy, p.wing_span, p.wing_chord,
-				float(p.wing_chord) * float(p.wing_taper), p.wing_sweep, p.wing_thick,
+			var k := 1.0 - asym * 0.45 if side > 0.0 else 1.0 + asym * 0.15
+			wing(st, side, wx0, wz, wy, float(p.wing_span) * k, p.wing_chord,
+				float(p.wing_chord) * float(p.wing_taper), float(p.wing_sweep) * k, p.wing_thick,
 				p.wing_dihedral, part_col, uvs)
 
 	# Canards (small forward wings).
@@ -248,9 +270,27 @@ static func build(p: Dictionary) -> Dictionary:
 	var eng_n := int(p.engine_count)
 	for i in eng_n:
 		var ex := (float(i) - (eng_n - 1) * 0.5) * float(p.engine_spacing)
-		var pos := Vector3(ex, p.engine_y, length * 0.5 + float(p.engine_out))
+		var pos := Vector3(ex, float(p.engine_y) + asym * 0.8 * sin(i * 2.1),
+			length * 0.5 + float(p.engine_out) + asym * 0.6 * cos(i * 1.7))
 		engine(st, pos, p.engine_radius, p.engine_len, dark, uvs)
 		engines.append(pos)
+
+	# Spires: tapered towers along the top of the hull.
+	var spires := int(p.spire_count)
+	for i in spires:
+		var t := lerpf(0.3, 0.85, (float(i) + 0.5) / spires)
+		var zc := z_at(p, t)
+		var y0 := height * 0.5 * profile(p, t) * 0.9
+		var sh := float(p.spire_height) * (1.0 - 0.15 * i)
+		var bw := maxf(0.15, width * 0.05)
+		var tw := bw * 0.15
+		var bot := PackedVector3Array([
+			Vector3(-bw, y0, zc - bw * 1.5), Vector3(bw, y0, zc - bw * 1.5),
+			Vector3(bw, y0, zc + bw * 1.5), Vector3(-bw, y0, zc + bw * 1.5)])
+		var top := PackedVector3Array([
+			Vector3(-tw, y0 + sh, zc - tw), Vector3(tw, y0 + sh, zc - tw),
+			Vector3(tw, y0 + sh, zc + tw), Vector3(-tw, y0 + sh, zc + tw)])
+		prism(st, bot, top, part_col, uvs)
 
 	# Surface greebles: little boxes scattered over the top of the hull.
 	var rng := RandomNumberGenerator.new()
@@ -265,6 +305,16 @@ static func build(p: Dictionary) -> Dictionary:
 		var sz := Vector3(rng.randf_range(0.3, 1.0), rng.randf_range(0.2, 0.7),
 			rng.randf_range(0.3, 1.2)) * gsize
 		box(st, Vector3(gx, gy, z_at(p, t)), sz, part_col.darkened(0.25), uvs)
+
+	# Exposed struts: long thin beams lying along the outside of the hull.
+	for i in int(p.strut_count):
+		var a := rng.randf_range(0.0, TAU)
+		var len_f := rng.randf_range(0.2, 0.5)
+		var tc := rng.randf_range(len_f * 0.5, 1.0 - len_f * 0.5)
+		var hp := section(p, tc, a)
+		var th := 0.25 * gsize + 0.05
+		box(st, Vector3(hp.x * 1.06, hp.y * 1.06, hp.z), Vector3(th, th, len_f * length),
+			part_col.darkened(0.3), uvs)
 
 	st.generate_normals()
 
