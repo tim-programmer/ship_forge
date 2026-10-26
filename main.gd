@@ -65,7 +65,7 @@ const SLIDERS := [
 	["Paint", "stripe_pos", "Stripe position", 0.0, 1.0, 0.01, 0.5, "tex"],
 	["Paint", "stripe_width", "Stripe width", 0.0, 0.5, 0.01, 0.08, "tex"],
 	["Paint", "grime", "Grime", 0.0, 1.0, 0.01, 0.5, "tex"],
-	["Paint", "window_density", "Window density", 0.0, 1.0, 0.01, 0.25, "tex"],
+	["Paint", "window_density", "Window density", 0.0, 0.3, 0.01, 0.1, "tex"],
 ]
 
 # group, key, label, default, kind
