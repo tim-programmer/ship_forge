@@ -48,6 +48,14 @@ const SLIDERS := [
 	["Engines", "engine_out", "Sticks out past tail", -1.0, 2.0, 0.05, 0.3, "mesh"],
 	["Cockpit", "cockpit_size", "Size", 0.0, 1.6, 0.01, 1.0, "mesh"],
 	["Cockpit", "cockpit_pos", "Position", 0.1, 0.7, 0.01, 0.3, "mesh"],
+	["Plating", "armor_rows", "Armor plate rows", 0.0, 12.0, 1.0, 0.0, "mesh"],
+	["Plating", "armor_thick", "Armor thickness", 0.02, 0.3, 0.01, 0.08, "mesh"],
+	["Plating", "armor_gap", "Gaps between plates", 0.05, 0.4, 0.01, 0.15, "mesh"],
+	["Shield", "shield_size", "Shield bubble size (0 = off)", 0.0, 1.5, 0.01, 0.0, "mesh"],
+	["Shield", "shield_opacity", "Shield strength", 0.0, 2.0, 0.01, 0.8, "mat"],
+	["Hangar", "hangar_count", "Bays (1 belly, 2 flanks, 3 both)", 0.0, 3.0, 1.0, 0.0, "mesh"],
+	["Hangar", "hangar_pos", "Position", 0.2, 0.8, 0.01, 0.5, "mesh"],
+	["Hangar", "hangar_size", "Size", 0.4, 2.0, 0.01, 1.0, "mesh"],
 	["Weapons", "turret_count", "Turrets", 0.0, 8.0, 1.0, 0.0, "mesh"],
 	["Weapons", "turret_size", "Turret size", 0.3, 2.0, 0.01, 0.8, "mesh"],
 	["Weapons", "turret_barrels", "Barrels per turret", 1.0, 4.0, 1.0, 2.0, "mesh"],
@@ -84,11 +92,14 @@ const COLORS := [
 	["Colors", "part_col", "Wings / fins tint", Color(0.8, 0.8, 0.85), "mesh"],
 	["Colors", "engine_col", "Engine glow", Color(0.4, 0.7, 1.0), "mat"],
 	["Colors", "cockpit_col", "Cockpit glass", Color(0.1, 0.25, 0.4), "mat"],
+	["Colors", "shield_col", "Shield", Color(0.3, 0.7, 1.0), "mat"],
+	["Colors", "hangar_col", "Hangar light", Color(1.0, 0.85, 0.55), "mat"],
 ]
 
 # Faction looks. Each preset resets everything to defaults, then applies these overrides.
 const FACTIONS := {
 	"Caldari": {
+		"hangar_count": 1.0,
 		"turret_count": 4.0, "turret_size": 0.9, "launcher_count": 2.0, "antenna_count": 2.0,
 		"length": 16.0, "width": 5.0, "height": 3.6, "hull_sides": 4.0, "hull_steps": 5.0,
 		"nose_len": 0.3, "tail_len": 0.25, "tail_scale": 0.8, "bulge": 0.0, "belly": 1.0,
@@ -103,6 +114,7 @@ const FACTIONS := {
 		"engine_col": Color(0.4, 0.7, 1.0),
 	},
 	"Gallente": {
+		"armor_rows": 4.0, "hangar_count": 1.0, "hangar_size": 1.3,
 		"turret_count": 3.0, "turret_size": 1.0, "turret_barrels": 1.0, "barrel_len": 2.5,
 		"length": 13.0, "width": 6.0, "height": 4.2, "hull_sides": 32.0,
 		"nose_len": 0.45, "nose_round": 0.7, "tail_len": 0.35, "tail_scale": 0.5,
@@ -119,6 +131,7 @@ const FACTIONS := {
 		"engine_col": Color(0.4, 1.0, 0.6),
 	},
 	"Amarr": {
+		"armor_rows": 7.0, "armor_thick": 0.1, "hangar_count": 2.0,
 		"turret_count": 4.0, "turret_size": 0.8, "barrel_len": 2.2,
 		"length": 20.0, "width": 4.5, "height": 3.2, "hull_sides": 8.0,
 		"nose_len": 0.4, "nose_round": 1.6, "tail_len": 0.2, "tail_scale": 0.6,
@@ -137,6 +150,7 @@ const FACTIONS := {
 		"engine_col": Color(1.0, 0.65, 0.25),
 	},
 	"Minmatar": {
+		"armor_rows": 3.0, "armor_thick": 0.06, "armor_gap": 0.3,
 		"turret_count": 3.0, "turret_size": 0.7, "turret_barrels": 3.0, "barrel_len": 1.5,
 		"launcher_count": 1.0, "antenna_count": 4.0,
 		"length": 15.0, "width": 3.2, "height": 2.6, "hull_sides": 6.0,
@@ -171,6 +185,9 @@ var glows: Array[MeshInstance3D] = []
 var mat := StandardMaterial3D.new()
 var glow_mat := StandardMaterial3D.new()
 var cockpit_mat := StandardMaterial3D.new()
+var hangar_mat := StandardMaterial3D.new()
+var shield: MeshInstance3D
+var shield_mat := ShaderMaterial.new()
 var albedo_img: Image
 var emission_img: Image
 
@@ -259,6 +276,35 @@ func _build_world() -> void:
 	glow_mat.emission_enabled = true
 	glow_mat.emission_energy_multiplier = 3.0
 
+	hangar_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	hangar_mat.emission_enabled = true
+	hangar_mat.emission_energy_multiplier = 1.5
+
+	var shield_shader := Shader.new()
+	shield_shader.code = """shader_type spatial;
+render_mode blend_add, unshaded, cull_disabled, depth_draw_never;
+uniform vec4 shield_color : source_color = vec4(0.3, 0.7, 1.0, 1.0);
+uniform float strength = 0.8;
+void fragment() {
+	float fres = pow(1.0 - clamp(abs(dot(normalize(NORMAL), normalize(VIEW))), 0.0, 1.0), 3.0);
+	float pulse = 0.9 + 0.1 * sin(TIME * 2.0);
+	ALBEDO = shield_color.rgb;
+	ALPHA = clamp((0.04 + fres) * strength * pulse, 0.0, 1.0);
+}
+"""
+	shield_mat.shader = shield_shader
+	var bubble := SphereMesh.new()
+	bubble.radius = 0.5
+	bubble.height = 1.0
+	bubble.radial_segments = 48
+	bubble.rings = 24
+	shield = MeshInstance3D.new()
+	shield.name = "Shield"
+	shield.mesh = bubble
+	shield.material_override = shield_mat
+	shield.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	add_child(shield)  # outside ship_root so it is not exported
+
 	tex_timer = Timer.new()
 	tex_timer.one_shot = true
 	tex_timer.wait_time = 0.25
@@ -312,6 +358,20 @@ func rebuild_mesh() -> void:
 	disc.height = 0.06
 	disc.radial_segments = 24
 	disc.rings = 1
+	shield.visible = float(params.shield_size) > 0.02
+	shield.scale = res.bounds * 3.0 * float(params.shield_size) + Vector3.ONE * 0.001
+	shield.position = res.center
+	for h in res.hangars:
+		var q := MeshInstance3D.new()
+		q.name = "HangarLight"
+		var qm := QuadMesh.new()
+		qm.size = h.size
+		q.mesh = qm
+		q.material_override = hangar_mat
+		q.position = h.pos
+		q.rotation_degrees = h.rot
+		ship_root.add_child(q)
+		glows.append(q)
 	for pos in res.engines:
 		var g := MeshInstance3D.new()
 		g.name = "EngineGlow"
@@ -338,6 +398,10 @@ func apply_material() -> void:
 	glow_mat.albedo_color = params.engine_col
 	glow_mat.emission = params.engine_col
 	cockpit_mat.albedo_color = params.cockpit_col
+	hangar_mat.albedo_color = params.hangar_col
+	hangar_mat.emission = params.hangar_col
+	shield_mat.set_shader_parameter("shield_color", params.shield_col)
+	shield_mat.set_shader_parameter("strength", params.shield_opacity)
 
 
 func _changed(kind: String) -> void:
