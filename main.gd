@@ -48,6 +48,14 @@ const SLIDERS := [
 	["Engines", "engine_out", "Sticks out past tail", -1.0, 2.0, 0.05, 0.3, "mesh"],
 	["Cockpit", "cockpit_size", "Size", 0.0, 1.6, 0.01, 1.0, "mesh"],
 	["Cockpit", "cockpit_pos", "Position", 0.1, 0.7, 0.01, 0.3, "mesh"],
+	["Weapons", "turret_count", "Turrets", 0.0, 8.0, 1.0, 0.0, "mesh"],
+	["Weapons", "turret_size", "Turret size", 0.3, 2.0, 0.01, 0.8, "mesh"],
+	["Weapons", "turret_barrels", "Barrels per turret", 1.0, 4.0, 1.0, 2.0, "mesh"],
+	["Weapons", "barrel_len", "Barrel length", 0.5, 4.0, 0.05, 1.8, "mesh"],
+	["Weapons", "launcher_count", "Missile pod pairs", 0.0, 6.0, 1.0, 0.0, "mesh"],
+	["Weapons", "launcher_size", "Missile pod size", 0.4, 2.0, 0.01, 0.9, "mesh"],
+	["Weapons", "antenna_count", "Sensor masts", 0.0, 8.0, 1.0, 0.0, "mesh"],
+	["Weapons", "antenna_height", "Mast height", 0.5, 6.0, 0.1, 2.5, "mesh"],
 	["Details", "greeble_count", "Surface bits", 0.0, 150.0, 1.0, 25.0, "mesh"],
 	["Details", "greeble_size", "Surface bit size", 0.1, 1.5, 0.01, 0.5, "mesh"],
 	["Details", "spire_count", "Spires", 0.0, 6.0, 1.0, 0.0, "mesh"],
@@ -81,6 +89,7 @@ const COLORS := [
 # Faction looks. Each preset resets everything to defaults, then applies these overrides.
 const FACTIONS := {
 	"Caldari": {
+		"turret_count": 4.0, "turret_size": 0.9, "launcher_count": 2.0, "antenna_count": 2.0,
 		"length": 16.0, "width": 5.0, "height": 3.6, "hull_sides": 4.0, "hull_steps": 5.0,
 		"nose_len": 0.3, "tail_len": 0.25, "tail_scale": 0.8, "bulge": 0.0, "belly": 1.0,
 		"wing_span": 0.0, "canard_span": 0.0, "fin_count": 0.0,
@@ -94,6 +103,7 @@ const FACTIONS := {
 		"engine_col": Color(0.4, 0.7, 1.0),
 	},
 	"Gallente": {
+		"turret_count": 3.0, "turret_size": 1.0, "turret_barrels": 1.0, "barrel_len": 2.5,
 		"length": 13.0, "width": 6.0, "height": 4.2, "hull_sides": 32.0,
 		"nose_len": 0.45, "nose_round": 0.7, "tail_len": 0.35, "tail_scale": 0.5,
 		"bulge": 0.35, "squareness": 2.0, "belly": 1.0,
@@ -109,6 +119,7 @@ const FACTIONS := {
 		"engine_col": Color(0.4, 1.0, 0.6),
 	},
 	"Amarr": {
+		"turret_count": 4.0, "turret_size": 0.8, "barrel_len": 2.2,
 		"length": 20.0, "width": 4.5, "height": 3.2, "hull_sides": 8.0,
 		"nose_len": 0.4, "nose_round": 1.6, "tail_len": 0.2, "tail_scale": 0.6,
 		"bulge": 0.3, "belly": 0.8,
@@ -126,6 +137,8 @@ const FACTIONS := {
 		"engine_col": Color(1.0, 0.65, 0.25),
 	},
 	"Minmatar": {
+		"turret_count": 3.0, "turret_size": 0.7, "turret_barrels": 3.0, "barrel_len": 1.5,
+		"launcher_count": 1.0, "antenna_count": 4.0,
 		"length": 15.0, "width": 3.2, "height": 2.6, "hull_sides": 6.0,
 		"nose_len": 0.3, "nose_round": 0.8, "tail_len": 0.3, "tail_scale": 0.6,
 		"bulge": 0.1, "belly": 0.9, "asymmetry": 0.7,

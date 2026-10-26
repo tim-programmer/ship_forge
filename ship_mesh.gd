@@ -306,6 +306,53 @@ static func build(p: Dictionary) -> Dictionary:
 			rng.randf_range(0.3, 1.2)) * gsize
 		box(st, Vector3(gx, gy, z_at(p, t)), sz, part_col.darkened(0.25), uvs)
 
+	# Turrets: a base, a head and a few barrels, spread over the top of the hull.
+	var turret_n := int(p.turret_count)
+	var ts: float = p.turret_size
+	var barrels := int(p.turret_barrels)
+	var barrel_len: float = float(p.barrel_len) * ts
+	for i in turret_n:
+		var t := lerpf(0.2, 0.8, (float(i) + 0.5) / turret_n)
+		var f := profile(p, t)
+		var xr := 0.0 if turret_n == 1 else (0.4 if i % 2 == 0 else -0.4)
+		var base := Vector3(xr * width * 0.5 * f,
+			height * 0.5 * f * sqrt(1.0 - xr * xr) - ts * 0.1, z_at(p, t))
+		box(st, base + Vector3(0, ts * 0.25, 0), Vector3(1.2, 0.5, 1.2) * ts,
+			part_col.darkened(0.15), uvs)
+		var head := base + Vector3(0, ts * 0.7, 0)
+		box(st, head, Vector3(0.9, 0.45, 1.1) * ts, part_col, uvs)
+		for b in barrels:
+			var bx := (float(b) - (barrels - 1) * 0.5) * 0.28 * ts
+			box(st, head + Vector3(bx, ts * 0.02, -(0.55 * ts + barrel_len * 0.5)),
+				Vector3(0.12 * ts, 0.12 * ts, barrel_len), dark, uvs)
+
+	# Missile launcher pods: blocks on both flanks with a 2x2 grid of tubes up front.
+	var launcher_n := int(p.launcher_count)
+	var ls: float = p.launcher_size
+	for i in launcher_n:
+		var t := lerpf(0.3, 0.7, (float(i) + 0.5) / launcher_n)
+		var f := profile(p, t)
+		for side in [-1.0, 1.0]:
+			var lc := Vector3(side * width * 0.5 * f * 0.95, -height * 0.1 * f, z_at(p, t))
+			box(st, lc, Vector3(0.8, 0.7, 2.0) * ls, part_col.darkened(0.2), uvs)
+			for qx in [-1.0, 1.0]:
+				for qy in [-1.0, 1.0]:
+					box(st, lc + Vector3(qx * 0.18, qy * 0.17, -1.02) * ls,
+						Vector3(0.25, 0.25, 0.15) * ls, dark, uvs)
+
+	# Sensor masts: thin poles with a crossbar and a tip, towards the back of the hull.
+	var ah: float = p.antenna_height
+	for i in int(p.antenna_count):
+		var t := rng.randf_range(0.55, 0.9)
+		var f := profile(p, t)
+		var xr := rng.randf_range(-0.5, 0.5)
+		var mh := rng.randf_range(0.6, 1.0) * ah
+		var mb := Vector3(xr * width * 0.5 * f,
+			height * 0.5 * f * sqrt(1.0 - xr * xr) - 0.1, z_at(p, t))
+		box(st, mb + Vector3(0, mh * 0.5, 0), Vector3(0.08, mh, 0.08), dark, uvs)
+		box(st, mb + Vector3(0, mh * 0.8, 0), Vector3(rng.randf_range(0.6, 1.6), 0.06, 0.06), dark, uvs)
+		box(st, mb + Vector3(0, mh, 0), Vector3(0.16, 0.16, 0.16), part_col, uvs)
+
 	# Exposed struts: long thin beams lying along the outside of the hull.
 	for i in int(p.strut_count):
 		var a := rng.randf_range(0.0, TAU)
