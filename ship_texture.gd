@@ -32,7 +32,8 @@ static func build(p: Dictionary, size: int) -> Dictionary:
 	var stripe_pos: float = p.stripe_pos
 	var stripe_half: float = float(p.stripe_width) * 0.5
 	var grime: float = p.grime
-	var win_density: float = p.window_density
+	# Squared so the low end of the slider is much sparser.
+	var win_density: float = pow(float(p.window_density), 2.0)
 
 	for y in size:
 		var v := float(y) / size
